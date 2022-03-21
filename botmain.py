@@ -78,7 +78,7 @@ def start(update: Update, context: CallbackContext):
     dbfuncs.update_user(user_id=uid, values={'first_name': user.first_name, 'AT_WORK': ''}, log=logger)
     logger.info(f'start edit for {uid} - {user.first_name}')
 
-    return show_main_menu(update, f'Привет {user.first_name}! Начнем редактировать карточку?')
+    return show_main_menu(update, context, f'Привет {user.first_name}! Начнем редактировать карточку?')
 
 
 def as_start(update: Update, context: CallbackContext):
@@ -87,7 +87,7 @@ def as_start(update: Update, context: CallbackContext):
     uid = get_user_id(update)
     dbfuncs.update_user(user_id=uid, values={'AT_WORK': ''}, log=logger)
     logger.debug(f"return back to main menu")
-    return show_main_menu(update, f'Продолжим?')
+    return show_main_menu(update, context, f'Продолжим?')
 
 
 def edit_item(user_id=None, message='', command='save'):
@@ -136,7 +136,7 @@ def view(update: Update, context: CallbackContext):
     str_mess = make_mess("<b>Ваши даные</b>")
     str_mess += make_mess("<b>Имя</b>", key='first_name', dct=temp_data)
 
-    str_mess += make_mess("<b>id</b>", key='user_id', dct=temp_data)
+    # str_mess += make_mess("<b>id</b>", key='user_id', dct=temp_data)
 
     str_mess += make_mess("<b>Сфера деятельности /scope</b>", key='tmp_scope', dct=temp_data)
     str_mess += make_mess("<b>Профессия /prof</b>", key='tmp_prof', dct=temp_data)
@@ -148,7 +148,7 @@ def view(update: Update, context: CallbackContext):
     str_mess += make_mess('<b>Выход: /stop</b>')
 
     context.bot.send_message(chat_id=update.effective_chat.id, text=str_mess, parse_mode=ParseMode.HTML)
-    return show_main_menu(update, f'Продолжим?')
+    return show_main_menu(update, context, f'Продолжим?')
 
 
 def save(update: Update, context: CallbackContext):
@@ -156,10 +156,10 @@ def save(update: Update, context: CallbackContext):
     uid = get_user_id(update)
     dbfuncs.save_user_data(user_id=uid, log=logger)
     context.bot.send_message(chat_id=update.effective_chat.id, text=f'Данные сохранены в БД')
-    return show_main_menu(update, f'Продолжим?')
+    return show_main_menu(update, context, f'Продолжим?')
 
 
-def show_main_menu(upd, start_mess):
+def show_main_menu(upd, context, start_mess):
     logger.debug(f"show main menu")
     keyboard = [
         [
@@ -176,23 +176,23 @@ def show_main_menu(upd, start_mess):
          ]
     ]
 
-    upd.message.reply_text(start_mess,
-                           reply_markup=ReplyKeyboardMarkup(
-                               keyboard, resize_keyboard=True, one_time_keyboard=False,
-                               input_field_placeholder='Что редактируем?'
-                           ),
+    # upd.message.reply_text(start_mess,
+    #                        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False,
+    #                            input_field_placeholder='Что редактируем?'),
+    #                        )
+    context.bot.send_message(chat_id=upd.effective_chat.id, text=start_mess,
+                             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False,
+                                                              input_field_placeholder='Что редактируем?'),
                            )
     return SELECT
 
 
 def show_menu(upd, start_mess):
     logger.info(f"show sub menu")
-    reply_keyboard = [['clear', 'cancel', 'save']]
     keyboard = [
         [
             KeyboardButton('/clear', callback_data='clear'),
             KeyboardButton('/done', callback_data='done'),
-            #             KeyboardButton('/save', callback_data='save'),
         ]
     ]
     upd.message.reply_text(start_mess,
@@ -208,13 +208,13 @@ def select(update: Update, context: CallbackContext) -> int:
     #     user = update.message.from_user
     uid = get_user_id(update)
     logger.info(f'Received selection - {update.message.text}')
-    usr_data = dbfuncs.read_user(user_id=uid, log=logger)
+    usr_data = dbfuncs.loc_user(user_id=uid, log=logger)
     try:
         sub_mess = serv.edit_info[usr_data['AT_WORK']][2]
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'Редактируем {sub_mess}')
     except:
-        sub_mess = update.message.text
-
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f'Редактируем {sub_mess}')
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'Неверный выбор!')
+        as_start(update, context)
     return SELECT
 
 
@@ -254,6 +254,10 @@ def bot_stop(update, _):
     return RESTART
 
 
+def catch(update: Update, context: CallbackContext):
+    return show_main_menu(update, context, f'Только дозволенные команды можно вводить. И текст')
+
+
 def main() -> None:
     updater = Updater(keys.token)
     dispatcher = updater.dispatcher
@@ -272,6 +276,7 @@ def main() -> None:
                 CommandHandler('view', view),
                 CommandHandler('save', save),
                 MessageHandler(Filters.text & ~Filters.command, select),
+                MessageHandler(~Filters.text, select)
             ],
             DONE_EDIT: [
                 CommandHandler('done', as_start),
