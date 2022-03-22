@@ -174,4 +174,3 @@ def save_user_data(dblink=dynamodb, log=logger, user_id: str = None):
         dct[new_k] = dct[tk]
 
     update_user(dblink=dblink, log=log, user_id=user_id, values={k[4:]: v for k, v in dct.items() if k in tmp_fld})
-

@@ -276,7 +276,7 @@ def main() -> None:
                 CommandHandler('view', view),
                 CommandHandler('save', save),
                 MessageHandler(Filters.text & ~Filters.command, select),
-                MessageHandler(~Filters.text, select)
+                MessageHandler(~Filters.text, bhelp)
             ],
             DONE_EDIT: [
                 CommandHandler('done', as_start),
