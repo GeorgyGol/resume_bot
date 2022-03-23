@@ -4,7 +4,7 @@
 
 import logging
 
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, ParseMode
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, KeyboardButton, ParseMode, error
 from telegram.ext import (Updater, CommandHandler, CallbackContext, MessageHandler, Filters,
                           ConversationHandler)
 
@@ -25,6 +25,11 @@ def get_user_id(update: Update):
     :param update:
     :return:
     """
+    if update.message.chat.type == 'group':
+        # если все-таки чат групповой, то бросаем ошибку (сюда не должны попасть никогда)
+        logger.info('group chat')
+        raise error.BadRequest('Работает только в личке')
+
     user = update.message.from_user
     #     return user.username
     return str(user.id)
@@ -69,6 +74,10 @@ def bhelp(update: Update, context: CallbackContext):
 
 def start(update: Update, context: CallbackContext):
     # вызывается сначала и разово, при старте бота
+    if update.message.chat.type == 'group':
+        # роверка запуска из группового чата
+        return
+
     uid = get_user_id(update)
 
     user = update.message.from_user
@@ -76,6 +85,7 @@ def start(update: Update, context: CallbackContext):
     dbfuncs.init_user_edit(user_id=uid, log=logger)
 
     dbfuncs.update_user(user_id=uid, values={'first_name': user.first_name, 'AT_WORK': ''}, log=logger)
+
     logger.info(f'start edit for {uid} - {user.first_name}')
 
     return show_main_menu(update, context, f'Привет {user.first_name}! Начнем редактировать карточку?')
@@ -163,16 +173,16 @@ def show_main_menu(upd, context, start_mess):
     logger.debug(f"show main menu")
     keyboard = [
         [
-            KeyboardButton("/scope", callback_data='scope'),
-            KeyboardButton("/prof", callback_data='prof'),
-            KeyboardButton("/skils", callback_data='skils'),
-            KeyboardButton("/lndin", callback_data='lndin'),
-            KeyboardButton("/portf", callback_data='portf')],
-        [KeyboardButton("/experience", callback_data='experience')],
-        [KeyboardButton("/help", callback_data='help'),
-         KeyboardButton("/view", callback_data='view'),
-         KeyboardButton("/save", callback_data='save'),
-         KeyboardButton("/stop", callback_data='stop'),
+            KeyboardButton("/scope"),
+            KeyboardButton("/prof"),
+            KeyboardButton("/skils"),
+            KeyboardButton("/lndin"),
+            KeyboardButton("/portf")],
+        [KeyboardButton("/experience")],
+        [KeyboardButton("/help"),
+         KeyboardButton("/view"),
+         KeyboardButton("/save"),
+         KeyboardButton("/stop"),
          ]
     ]
 
@@ -198,8 +208,7 @@ def show_menu(upd, start_mess):
     upd.message.reply_text(start_mess,
                            reply_markup=ReplyKeyboardMarkup(
                                keyboard, resize_keyboard=True, one_time_keyboard=False,
-                               input_field_placeholder='Действие?'
-                           ),
+                               input_field_placeholder='Действие?'),
                            )
     return DONE_EDIT
 
@@ -257,7 +266,6 @@ def bot_stop(update, _):
 def catch(update: Update, context: CallbackContext):
     return show_main_menu(update, context, f'Только дозволенные команды можно вводить. И текст')
 
-
 def main() -> None:
     updater = Updater(keys.token)
     dispatcher = updater.dispatcher
@@ -293,6 +301,7 @@ def main() -> None:
     dispatcher.add_handler(conv_handler)
 
     # Start the Bot
+
     updater.start_polling()
     updater.idle()
 
