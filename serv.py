@@ -5,9 +5,9 @@
 import re
 
 # словарик с сообщениям - фактически ресурс для хелпа и общения с пользователем
-edit_info = {'name': ['id', 'id'],
+edit_info = {'user_id': ['id', 'id'],
              'first_name': ['Имя', 'Имя'],
-             'scope': ['/scope', 'Сфера деятельности', 'сферу деятельности'],
+             'scope': ['/scope', 'Сфера деятельности', 'сферу деятельности '],
              'prof': ['/prof', 'Профессия', 'профессию'],
              'skils': ['/skils', 'Навыки', 'навыки'],
              'lndin': ['lndin', 'Профиль linkedin', 'linkedin'],
@@ -55,3 +55,9 @@ def tail_message(selector: str, user_data: str) -> str:
 def get_temp_fields(dct):
     lst_inc = ['user_id', 'first_name']
     return {k: v for k, v in dct.items() if k.startswith('tmp_') or k in lst_inc}
+
+
+def iterate_group(iterator, count):
+    # itr = iter(iterator)
+    for i in range(0, len(iterator), count):
+        yield iterator[i:i + count]
