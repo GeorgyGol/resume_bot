@@ -3,12 +3,12 @@
 """
 
 import logging
-import re
 
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import (ReplyKeyboardMarkup,
-                           KeyboardButton, ReplyKeyboardRemove)
+from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup,
+                           InlineKeyboardButton)
 from aiogram.types.message import ParseMode, ContentType
+from aiogram.utils.exceptions import MessageNotModified
 from aiogram.utils.markdown import text, bold
 
 import dbfuncs
@@ -39,10 +39,19 @@ def edit_menu():
     return kbt
 
 
+def scope_menu():
+    scopes = dbfuncs.get_scope(log=logger)
+    kb = InlineKeyboardMarkup(row_width=4)
+    for s in scopes:
+        if len(s) > 10:
+            kb.row(InlineKeyboardButton(s, callback_data=str(s)))
+        else:
+            kb.insert(InlineKeyboardButton(s, callback_data=str(s)))
+    return kb
+
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     if message.chat.type == 'group':
-        # роверка запуска из группового чата
         return
 
     dbfuncs.update_user(log=logger, user_id=str(message.from_user.id),
@@ -120,7 +129,8 @@ async def save_edit(message: types.Message):
 @dp.message_handler(commands=['scope'])
 async def edit_scope(message: types.Message):
     _m = select_main(message, 'scope')
-    await message.reply(_m, reply_markup=edit_menu())
+    await bot.send_message(message.from_user.id, text=_m, reply_markup=edit_menu())
+    # await message.reply(_m, reply_markup=edit_menu())
 
 
 @dp.message_handler(commands=['skils'])
@@ -185,7 +195,6 @@ async def cancel_text(message: types.Message):
     _mess = f"Редактируем {serv.edit_info[cur_state][2]}: {usr_info[cur_state]}"
     await bot.send_message(message.from_user.id, _mess, reply_markup=edit_menu())
 
-
 @dp.message_handler(commands=['done'])
 async def done_text(message: types.Message):
     # usr_info = dbfuncs.get_user(log=logger, user_id=str(message.from_user.id), table=dbfuncs.USER_TABLE)
@@ -195,6 +204,40 @@ async def done_text(message: types.Message):
     await bot.send_message(message.from_user.id, _mess, reply_markup=main_menu())
 
 
+@dp.message_handler(commands=['show'])
+async def show(message: types.Message):
+    usr_info = dbfuncs.get_user(log=logger, user_id=str(message.from_user.id), table=dbfuncs.USER_TABLE)
+    if usr_info['AT_WORK'] == 'scope':
+        kbt = scope_menu()
+    else:
+        return
+    _m = select_main(message, 'scope')
+    await bot.send_message(message.from_user.id, _m, reply_markup=kbt)
+
+
+@dp.callback_query_handler()
+async def process_callback_bt(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    uid = callback_query.from_user.id
+    user_data = dbfuncs.get_user(user_id=str(uid), table=dbfuncs.USER_TABLE)
+
+    if user_data['AT_WORK'] == 'scope':
+
+        try:
+            new_text = serv.append_text(user_data[f'tmp_scope'], callback_query.data, allcaps=True)
+        except ValueError:
+            await callback_query.reply('Недопустимые символы во вводе', reply_markup=edit_menu())
+            return
+        dbfuncs.update_user(log=logger, user_id=str(uid),
+                            table=dbfuncs.USER_TABLE, values={f'tmp_scope': new_text})
+        _mess = f"Редактируем {serv.edit_info['scope'][2]}: {new_text}"
+        try:
+            await bot.edit_message_text(message_id=callback_query.message.message_id,
+                                        chat_id=callback_query.message.chat.id, parse_mode=types.ParseMode.HTML,
+                                        text=_mess, reply_markup=scope_menu())
+        except MessageNotModified:
+            pass
+
 @dp.message_handler()
 async def edit_text(message: types.Message):
     usr_info = dbfuncs.get_user(log=logger, user_id=str(message.from_user.id), table=dbfuncs.USER_TABLE)
@@ -202,7 +245,7 @@ async def edit_text(message: types.Message):
 
     if usr_info['AT_WORK'] in ['scope', 'skils', 'prof']:
         try:
-            new_text = append_text(usr_info[f'tmp_{cur_state}'], message.text, allcaps=(cur_state == 'scope'))
+            new_text = serv.append_text(usr_info[f'tmp_{cur_state}'], message.text, allcaps=(cur_state == 'scope'))
         except ValueError:
             await message.reply('Недопустимые символы во вводе', reply_markup=edit_menu())
             return
@@ -218,41 +261,11 @@ async def edit_text(message: types.Message):
     _mess = f"Редактируем {serv.edit_info[cur_state][2]}: {new_text}"
     await bot.send_message(message.from_user.id, _mess, reply_markup=edit_menu())
 
-
 @dp.message_handler(content_types=ContentType.ANY)
 async def unknown_message(msg: types.Message):
     message_text = text('Ха-ха. Вы пошутили - я тоже посмеялся',
                         '(/help вам в помощь)')
     await msg.reply(message_text, parse_mode=ParseMode.MARKDOWN, reply_markup=main_menu())
-
-
-def check_item(s_item):
-    if len(s_item) > 64:
-        return False
-    if re.search('[(*\/)#$%&~]', s_item):
-        return False
-    return True
-
-
-def append_text(old, new, allcaps=False):
-    try:
-        if old:
-            _old_l = old.split(';')
-        else:
-            _old_l = list()
-    except AttributeError:
-        _old_l = list()
-
-    _new_l = list(set(re.split('[;,]', new)))
-    if all([check_item(s) for s in _new_l]):
-        if allcaps:
-            _new_l = list(map(str.upper, _new_l))
-
-        ret = _old_l + [l.strip() for l in _new_l if (l not in _old_l) and (l.strip() != '')]
-
-        return '; '.join(ret)
-    else:
-        raise ValueError
 
 
 if __name__ == '__main__':

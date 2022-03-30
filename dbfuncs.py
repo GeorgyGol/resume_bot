@@ -35,7 +35,6 @@ def connect_db(linkdb=dynamodb):
     :return: объект-коннекш к БД
     """
     if not linkdb:
-        # в "боевой" версии подключение надо будет поменять - ключи будут читаться из системных переменных яндекс-функции
         return boto3.resource('dynamodb',
                               endpoint_url=keys.USER_STORAGE_URL,
                               region_name=keys.REGION,
@@ -218,6 +217,15 @@ def _sorted_from_list2(lst2: list) -> list:
     return sorted(ret)
 
 
+def _drop_duplicates(lst: list) -> list:
+    ret = list()
+    st = set()
+    for i in lst:
+        if i.lower() not in st:
+            ret.append(i)
+            st.add(i.lower())
+    return ret
+
 def get_scope(dblink=dynamodb, log=logger, table=USER_TABLE) -> list:
     log.debug(f'select all scope')
     tbl = connect_db(linkdb=dblink).Table(table)
@@ -231,7 +239,8 @@ def get_scope(dblink=dynamodb, log=logger, table=USER_TABLE) -> list:
 
     if 'Items' in response:
         scps = [i['scope'].split(';') for i in response['Items']]
-        return _sorted_from_list2(scps)
+        sc_list = _sorted_from_list2(scps)
+        return _drop_duplicates(sc_list)
     else:
         return ''
 
@@ -251,30 +260,54 @@ def get_skils(dblink=dynamodb, log=logger, scope='', skils='', table=USER_TABLE)
     if skils:
         scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and Attr('skils').contains(skils)
 
+    scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and (
+                Attr('lndin').size().gt(0) or Attr('portf').size().gt(0))
+
     response = tbl.scan(**scan_kwargs)
 
     if 'Items' in response:
-        skls = [i['skils'].split(';') for i in response['Items']]
-        return _sorted_from_list2(skls)
+        # skls = response['Items'][0]['skils']
+        _lsts = list()
+        for i in response['Items']:
+            try:
+                _lsts.append(i['skils'].split(';'))
+            except KeyError:
+                pass
+
+        skls = _sorted_from_list2(_lsts)
+
+        return _drop_duplicates(skls)
     else:
         return ''
 
 
+def get_users(dblink=dynamodb, table=USER_TABLE, scope='', skils='', log=logger):
+    def compare(str1, str2):
+        if type(str1) != str:
+            return False
+        skl1 = set(map(str.lower, map(str.strip, str1.split(';'))))
+        skl2 = set(map(str.lower, map(str.strip, str2.split(';'))))
+        return bool(skl1 & skl2)
+
+    log.debug(f'select all skils for scope {scope}')
+
+    pdf = get_pdFrame()[['user_id', 'first_name', 'scope', 'prof', 'skils', 'lndin', 'portf']]
+    if scope not in ('ВСЕ', None, ''):
+        pdf = pdf[pdf['scope'].str.contains(r'\b{}\b'.format(scope), case=False, na=False, regex=True)]
+    if skils not in ('ВСЕ', None, ''):
+        pdf = pdf[pdf.apply(lambda x: compare(x['skils'], skils), axis=1)]
+
+    return pdf
+
 def get_pdFrame(dblink=dynamodb, table=USER_TABLE):
     tbl = connect_db(linkdb=dblink).Table(table)
-
     data = tbl.scan()
     if 'Items' in data:
-        return pd.DataFrame(data['Items'])
+        pdf = pd.DataFrame(data['Items'])
+        pdf = pdf[pdf['first_name'].notna()]
+        pdf = pdf[pdf['lndin'].notna() | pdf['portf'].notna()]
+        pdf = pdf[(pdf['lndin'] != '') | (pdf['portf'] != '')]
+        return pdf
     else:
         return None
 
-# for i, v in get_pdFrame().iterrows():
-#     print(i, v)
-# import serv
-# x = get_scope()
-# for i in serv.iterate_group(x, 4):
-#     print(i)
-# print(get_skils(scope='ИТ'))
-
-# delete_user(user_id='1216506180')
