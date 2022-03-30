@@ -5,9 +5,9 @@
 import re
 
 # словарик с сообщениям - фактически ресурс для хелпа и общения с пользователем
-edit_info = {'name': ['id', 'id'],
+edit_info = {'user_id': ['id', 'id'],
              'first_name': ['Имя', 'Имя'],
-             'scope': ['/scope', 'Сфера деятельности', 'сферу деятельности'],
+             'scope': ['/scope', 'Сфера деятельности', 'сферу деятельности (существующие - /show)'],
              'prof': ['/prof', 'Профессия', 'профессию'],
              'skils': ['/skils', 'Навыки', 'навыки'],
              'lndin': ['lndin', 'Профиль linkedin', 'linkedin'],
@@ -55,3 +55,38 @@ def tail_message(selector: str, user_data: str) -> str:
 def get_temp_fields(dct):
     lst_inc = ['user_id', 'first_name']
     return {k: v for k, v in dct.items() if k.startswith('tmp_') or k in lst_inc}
+
+
+def iterate_group(iterator, count):
+    # itr = iter(iterator)
+    for i in range(0, len(iterator), count):
+        yield iterator[i:i + count]
+
+
+def check_item(s_item):
+    if len(s_item) > 64:
+        return False
+    if re.search('[(*\/)#$%&~]', s_item):
+        return False
+    return True
+
+
+def append_text(old, new, allcaps=False):
+    try:
+        if old:
+            _old_l = list(map(str.strip, old.split(';')))
+        else:
+            _old_l = list()
+    except AttributeError:
+        _old_l = list()
+
+    _new_l = list(set(re.split('[;,]', new)))
+    if all([check_item(s) for s in _new_l]):
+        if allcaps:
+            _new_l = list(map(str.upper, _new_l))
+
+        ret = _old_l + [l.strip() for l in _new_l if (l not in _old_l) and (l.strip() != '')]
+
+        return '; '.join(ret)
+    else:
+        raise ValueError
