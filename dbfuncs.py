@@ -181,13 +181,14 @@ def init_user_edit(dblink=dynamodb, log=logger, user_id: str = None, table: str 
     exist_data = loc_user(user_id=user_id, log=log, table=table)
 
     for k in serv.edit_info.keys():
-        if k not in ['user_id', 'first_name', 'AT_WORK']:
+        if k not in ['user_id', 'first_name', 'AT_WORK', 'full_name', 'mention', 'user_url']:
             exist_data.setdefault(k, '')
             exist_data.setdefault(f'tmp_{k}', '')
         else:
             exist_data.pop(k)
 
     exist_data.update({'AT_WORK': ''})
+
     update_user(dblink=dynamodb, log=log, user_id=user_id, values=exist_data, table=table)
 
 
@@ -291,7 +292,8 @@ def get_users(dblink=dynamodb, table=USER_TABLE, scope='', skils='', log=logger)
 
     log.debug(f'select all skils for scope {scope}')
 
-    pdf = get_pdFrame()[['user_id', 'first_name', 'scope', 'prof', 'skils', 'lndin', 'portf']]
+    pdf = get_pdFrame()[['user_id', 'first_name', 'full_name', 'user_url',
+                         'scope', 'prof', 'skils', 'lndin', 'portf', 'mention', 'experience']]
     if scope not in ('ВСЕ', None, ''):
         pdf = pdf[pdf['scope'].str.contains(r'\b{}\b'.format(scope), case=False, na=False, regex=True)]
     if skils not in ('ВСЕ', None, ''):
@@ -304,10 +306,9 @@ def get_pdFrame(dblink=dynamodb, table=USER_TABLE):
     data = tbl.scan()
     if 'Items' in data:
         pdf = pd.DataFrame(data['Items'])
-        pdf = pdf[pdf['first_name'].notna()]
+        pdf = pdf[pdf['full_name'].notna()]
         pdf = pdf[pdf['lndin'].notna() | pdf['portf'].notna()]
         pdf = pdf[(pdf['lndin'] != '') | (pdf['portf'] != '')]
         return pdf
     else:
         return None
-

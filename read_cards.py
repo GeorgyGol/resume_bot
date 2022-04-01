@@ -57,9 +57,9 @@ def skils_menu(scope=''):
 
 
 def main_menu():
-    btn = [KeyboardButton('/help'), KeyboardButton('/scope'),
-           KeyboardButton('/skils'), KeyboardButton('/show')]
-    return ReplyKeyboardMarkup(resize_keyboard=True).add(*btn)
+    kbt = ReplyKeyboardMarkup(resize_keyboard=True).row(KeyboardButton('/scope'), KeyboardButton('/skils'))
+    kbt.row(KeyboardButton('/help'), KeyboardButton('/show'))
+    return kbt
 
 
 def show_menu():
@@ -141,12 +141,16 @@ async def show(message: types.Message):
     def print_user(num, s):
         ff = lambda x: x if type(x) != float else '-x-'
         x = list()
-        x.append(f'{num}. <u>{s.first_name}</u>')
+
+        user = '<a href = "{url}">{uname}</a>'.format(uname=s.full_name, url=s.user_url)
+        # x.append(f'{num}. <u>{s.first_name}</u>')
+        x.append(f'{num}. {user}')
         x.append('<b>сфера:</b> {}'.format(ff(s.scope)))
         x.append('<b>проф:</b> {}'.format(ff(s.prof)))
         x.append('<b>навыки:</b> {}'.format(ff(s.skils)))
         x.append('<b>LinkedIn:</b> {}'.format(ff(s.lndin)))
         x.append('<b>портфолио:</b> {}'.format(ff(s.portf)))
+        x.append('<b>стаж:</b> {}'.format(ff(s.experience)))
         x.append('______________________\n')
         return x
 
@@ -183,7 +187,7 @@ async def show(message: types.Message):
 
 @dp.message_handler(commands=['stop'])
 async def send_stop(message: types.Message):
-    _mess = f"Пока, {message.from_user.first_name}!\nНадеюсь, еще увидимся?"
+    _mess = f"Пока, {message.from_user.full_name}!\nНадеюсь, еще увидимся?"
     await message.reply(_mess, reply_markup=ReplyKeyboardRemove())
 
 

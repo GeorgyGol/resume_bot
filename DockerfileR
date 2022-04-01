@@ -1,0 +1,13 @@
+FROM python:3.9
+RUN pip install -U boto3
+RUN pip install -U aiogram
+RUN pip install -U pandas
+MAINTAINER g.golyshev@gmail.com
+
+COPY read_cards.py .
+ENTRYPOINT python read_cards.py
+
+COPY dbfuncs.py .
+COPY README.md .
+COPY keys.py .
+COPY serv.py .
