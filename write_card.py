@@ -32,7 +32,6 @@ def main_menu():
     kbt = ReplyKeyboardMarkup(resize_keyboard=True).row(*btn[0]).row(*btn[1]).row(*btn[2])
     return kbt
 
-
 def edit_menu():
     btn = [KeyboardButton('/clear'), KeyboardButton('/cancel'), KeyboardButton('/done')]
     kbt = ReplyKeyboardMarkup(resize_keyboard=True).row(*btn)
@@ -55,17 +54,22 @@ async def send_welcome(message: types.Message):
         return
 
     dbfuncs.update_user(log=logger, user_id=str(message.from_user.id),
-                        values={'first_name': message.from_user.first_name}, table=dbfuncs.USER_TABLE)
+                        values={'first_name': message.from_user.first_name,
+                                'full_name': message.from_user.full_name,
+                                'mention': message.from_user.mention,
+                                'user_url': message.from_user.url},
+                        table=dbfuncs.USER_TABLE)
     dbfuncs.init_user_edit(log=logger, user_id=str(message.from_user.id), table=dbfuncs.USER_TABLE)
 
-    _mess = f"Привет {message.from_user.first_name}!\nНачнем редактировать карточку?"
+    _mess = f"Привет {message.from_user.full_name}!\nНачнем редактировать карточку?"
     await message.reply(_mess, reply_markup=main_menu())
 
 
 @dp.message_handler(commands=['stop'])
 async def send_stop(message: types.Message):
-    _mess = f"Пока, {message.from_user.first_name}!\nНадеюсь, еще увидимся?"
+    _mess = f"Пока, {message.from_user.full_name}!\nНадеюсь, еще увидимся?"
     await message.reply(_mess, reply_markup=ReplyKeyboardRemove())
+
 
 
 @dp.message_handler(commands=['view'])
@@ -76,7 +80,7 @@ async def view_card(message: types.Message):
         return f'{_s1}: {_s2}'
 
     usr_info = dict(dbfuncs.get_user(log=logger, user_id=str(message.from_user.id), table=dbfuncs.USER_TABLE))
-    msg = text(bold(f'{usr_info["first_name"]}, Ваши данные:'),
+    msg = text(bold(f'{usr_info["full_name"]}, Ваши данные:'),
                _gets('scope'), _gets('prof'), _gets('skils'), _gets('lndin'), _gets('portf'),
                _gets('experience'),
                sep='\n')
@@ -122,7 +126,7 @@ async def send_help(message: types.Message):
 @dp.message_handler(commands=['save'])
 async def save_edit(message: types.Message):
     dbfuncs.save_user_data(user_id=str(message.from_user.id), log=logger)
-    _mess = f"{message.from_user.first_name}, Ваши данные сохраненыв БД!"
+    _mess = f"{message.from_user.full_name}, Ваши данные сохраненыв БД!"
     await message.reply(_mess, reply_markup=main_menu())
 
 
