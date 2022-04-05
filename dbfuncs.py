@@ -246,41 +246,50 @@ def get_scope(dblink=dynamodb, log=logger, table=USER_TABLE) -> list:
         return ''
 
 
+# def get_skils(dblink=dynamodb, log=logger, scope='', skils='', table=USER_TABLE) -> list:
+#     log.debug(f'select all skils for scope {scope}')
+#
+#     tbl = connect_db(linkdb=dblink).Table(table)
+#     if scope:
+#         scan_kwargs = {
+#             'FilterExpression': Attr('scope').contains(scope),
+#         }
+#     else:
+#         scan_kwargs = {
+#             'FilterExpression': Attr('scope').size().gt(0),
+#         }
+#     if skils:
+#         scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and Attr('skils').contains(skils)
+#
+#     scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and (
+#                 Attr('lndin').size().gt(0) or Attr('portf').size().gt(0))
+#
+#     response = tbl.scan(**scan_kwargs)
+#
+#     if 'Items' in response:
+#         # skls = response['Items'][0]['skils']
+#         _lsts = list()
+#         for i in response['Items']:
+#             try:
+#                 _lsts.append(i['skils'].split(';'))
+#             except KeyError:
+#                 pass
+#
+#         skls = _sorted_from_list2(_lsts)
+#
+#         return _drop_duplicates(skls)
+#     else:
+#         return ''
+
 def get_skils(dblink=dynamodb, log=logger, scope='', skils='', table=USER_TABLE) -> list:
-    log.debug(f'select all skils for scope {scope}')
-
-    tbl = connect_db(linkdb=dblink).Table(table)
-    if scope:
-        scan_kwargs = {
-            'FilterExpression': Attr('scope').contains(scope),
-        }
-    else:
-        scan_kwargs = {
-            'FilterExpression': Attr('scope').size().gt(0),
-        }
-    if skils:
-        scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and Attr('skils').contains(skils)
-
-    scan_kwargs['FilterExpression'] = scan_kwargs['FilterExpression'] and (
-                Attr('lndin').size().gt(0) or Attr('portf').size().gt(0))
-
-    response = tbl.scan(**scan_kwargs)
-
-    if 'Items' in response:
-        # skls = response['Items'][0]['skils']
-        _lsts = list()
-        for i in response['Items']:
-            try:
-                _lsts.append(i['skils'].split(';'))
-            except KeyError:
-                pass
-
-        skls = _sorted_from_list2(_lsts)
-
-        return _drop_duplicates(skls)
-    else:
-        return ''
-
+    pdf = get_pdFrame(dblink=dblink, table=table, all_rec=True)[['scope', 'skils']]
+    if scope.upper() not in ['ВСЕ', '*']:
+        pdf = pdf[pdf['scope'].str.contains(scope)]
+    ret = set()
+    for _, sk in pdf.iterrows():
+        sn = [m.strip() for m in sk['skils'].split(';') if m.strip() != '']
+        ret.update(sn)
+    return sorted(list(ret))
 
 def get_users(dblink=dynamodb, table=USER_TABLE, scope='', skils='', log=logger):
     def compare(str1, str2):
@@ -301,14 +310,18 @@ def get_users(dblink=dynamodb, table=USER_TABLE, scope='', skils='', log=logger)
 
     return pdf
 
-def get_pdFrame(dblink=dynamodb, table=USER_TABLE):
+
+def get_pdFrame(dblink=dynamodb, table=USER_TABLE, all_rec=False):
     tbl = connect_db(linkdb=dblink).Table(table)
     data = tbl.scan()
     if 'Items' in data:
         pdf = pd.DataFrame(data['Items'])
         pdf = pdf[pdf['full_name'].notna()]
-        pdf = pdf[pdf['lndin'].notna() | pdf['portf'].notna()]
-        pdf = pdf[(pdf['lndin'] != '') | (pdf['portf'] != '')]
+        if not all_rec:
+            pdf = pdf[pdf['lndin'].notna() | pdf['portf'].notna()]
+            pdf = pdf[(pdf['lndin'] != '') | (pdf['portf'] != '')]
         return pdf
     else:
         return None
+
+# print(get_skils(scope='IT'))
